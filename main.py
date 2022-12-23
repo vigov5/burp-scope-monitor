@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*- 
+# -*- coding: utf-8 -*-
 from burp import IBurpExtender
 from burp import ITab
 from burp import IHttpListener
@@ -54,11 +54,11 @@ from javax.swing.table import TableRowSorter
 from java.awt import EventQueue
 
 from urlparse import *
-import datetime 
+import datetime
 import time
 import sched
 
-RED_COLOR = Color(255,135,135) 
+RED_COLOR = Color(255,135,135)
 GREEN_COLOR = Color(107,255,127)
 
 SHOW_ALL_BUTTON_LABEL = "Show All"
@@ -78,18 +78,18 @@ class Run(Runnable):
         self.runner()
 
 class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController, AbstractTableModel, IContextMenuFactory, IExtensionStateListener):
-    
+
     #
     # implement IBurpExtender
     #
-    
+
     def	registerExtenderCallbacks(self, callbacks):
         # keep a reference to our callbacks object
         self._callbacks = callbacks
-        
+
         # obtain an extension helpers object
         self._helpers = callbacks.getHelpers()
-        
+
         # set our extension name
         callbacks.setExtensionName("Burp Scope Monitor Experimental")
 
@@ -102,9 +102,11 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
 
         self.BAD_EXTENSIONS_DEFAULT = ['.gif', '.png', '.js', '.woff', '.woff2', '.jpeg', '.jpg', '.css', '.ico', '.m3u8', '.ts', '.svg']
         self.BAD_MIMES_DEFAULT      = ['gif', 'script', 'jpeg', 'jpg', 'png', 'video', 'mp2t']
-        
+        self.BAD_METHODS_DEFAULT    = ['HEAD', 'TRACE', 'CONNECT', 'OPTIONS']
+
         self.BAD_EXTENSIONS = self.BAD_EXTENSIONS_DEFAULT
         self.BAD_MIMES      = self.BAD_MIMES_DEFAULT
+        self.BAD_METHODS    = self.BAD_METHODS_DEFAULT
 
         # create the log and a lock on which to synchronize when adding log entries
 
@@ -117,7 +119,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         self._fullLog = ArrayList()
         self._lock = Lock()
         self._lockFile = Lock()
-        
+
         # main split pane
         self._parentPane = JTabbedPane()
 
@@ -132,7 +134,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         #config.setLayout(BorderLayout())
         config.setLayout(None)
         iexport.setLayout(None)
-        
+
         # config radio button
         X_BASE = 40
         Y_OFFSET = 5
@@ -153,7 +155,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
 
         self.showAllButton.addActionListener(self.handleRadioConfig)
         self.showNewButton.addActionListener(self.handleRadioConfig)
-        self.showTestedButton.addActionListener(self.handleRadioConfig) 
+        self.showTestedButton.addActionListener(self.handleRadioConfig)
 
         self.clearButton = JButton("Clear")
         self.clearButton.addActionListener(self.handleClearButton)
@@ -167,7 +169,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         self.badExtensionsLabel.setBounds(X_BASE, 150, 200, 30)
 
         self.badExtensionsText = JTextArea("")
-        self.loadBadExtensions()        
+        self.loadBadExtensions()
         self.badExtensionsText.setBounds(X_BASE, 175, 310, 30)
 
         self.badExtensionsButton = JButton("Save")
@@ -182,7 +184,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         self.badMimesLabel.setBounds(X_BASE, 220, 200, 30)
 
         self.badMimesText = JTextArea("")
-        self.loadBadMimes() 
+        self.loadBadMimes()
         self.badMimesText.setBounds(X_BASE, 245, 310, 30)
 
         self.badMimesButton = JButton("Save")
@@ -193,9 +195,24 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         self.badMimesDefaultButton.addActionListener(self.handleBadMimesDefaultButton)
         self.badMimesDefaultButton.setBounds(430, 245, 120, 30)
 
+        self.badMethodsLabel = JLabel("Ignore HTTP methods:")
+        self.badMethodsLabel.setBounds(X_BASE, 290, 200, 30)
+
+        self.badMethodsText = JTextArea("")
+        self.loadBadMethods()
+        self.badMethodsText.setBounds(X_BASE, 315, 310, 30)
+
+        self.badMethodsButton = JButton("Save")
+        self.badMethodsButton.addActionListener(self.handleBadMethodsButton)
+        self.badMethodsButton.setBounds(355, 315, 70, 30)
+
+        self.badMethodsDefaultButton = JButton("Load Defaults")
+        self.badMethodsDefaultButton.addActionListener(self.handleBadMethodsDefaultButton)
+        self.badMethodsDefaultButton.setBounds(430, 315, 120, 30)
+
 
         self.otherLabel = JLabel("Other:")
-        self.otherLabel.setBounds(40, 300, 120, 30)
+        self.otherLabel.setBounds(40, 370, 120, 30)
 
         self.otherLabel2 = JLabel("Other:")
         self.otherLabel2.setBounds(X_BASE, Y_OPTION, 120, 30)
@@ -208,27 +225,27 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         self.repeaterOptionButton = JCheckBox("Repeater request automatically marks as analyzed")
         self.repeaterOptionButton.setSelected(True)
         self.repeaterOptionButton.addActionListener(self.handleRepeaterOptionButton)
-        self.repeaterOptionButton.setBounds(50, 330, 420, 30)
+        self.repeaterOptionButton.setBounds(50, 400, 420, 30)
 
         self.scopeOptionButton = JCheckBox("Follow Burp Target In Scope rules")
         self.scopeOptionButton.setSelected(True)
         self.scopeOptionButton.addActionListener(self.handleScopeOptionButton)
-        self.scopeOptionButton.setBounds(50, 350, 420, 30)
+        self.scopeOptionButton.setBounds(50, 420, 420, 30)
 
         self.startOptionButton = JCheckBox("Autostart Scope Monitor")
         self.startOptionButton.setSelected(True)
         self.startOptionButton.addActionListener(self.handleStartOption)
-        self.startOptionButton.setBounds(50, 350 + Y_OPTION_SPACING, 420, 30)
+        self.startOptionButton.setBounds(50, 420 + Y_OPTION_SPACING, 420, 30)
 
         self.markTestedRequestsProxy = JCheckBox("Color request in Proxy tab if analyzed")
         self.markTestedRequestsProxy.setSelected(True)
         self.markTestedRequestsProxy.addActionListener(self.handleTestedRequestsProxy)
-        self.markTestedRequestsProxy.setBounds(50, 350 + Y_OPTION_SPACING*2, 420, 30)
+        self.markTestedRequestsProxy.setBounds(50, 420 + Y_OPTION_SPACING*2, 420, 30)
 
         self.markNotTestedRequestsProxy = JCheckBox("Color request in Proxy tab if NOT analyzed")
         self.markNotTestedRequestsProxy.setSelected(True)
         self.markNotTestedRequestsProxy.addActionListener(self.handleNotTestedRequestsProxy)
-        self.markNotTestedRequestsProxy.setBounds(50, 350 + Y_OPTION_SPACING*3, 420, 30)
+        self.markNotTestedRequestsProxy.setBounds(50, 420 + Y_OPTION_SPACING*3, 420, 30)
 
 
         self.saveButton = JButton("Save now")
@@ -270,8 +287,13 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         config.add(self.badMimesText)
         config.add(self.badMimesLabel)
 
+        config.add(self.badMethodsButton)
+        config.add(self.badMethodsText)
+        config.add(self.badMethodsLabel)
+
         config.add(self.badExtensionsDefaultButton)
         config.add(self.badMimesDefaultButton)
+        config.add(self.badMethodsDefaultButton)
 
         config.add(self.otherLabel)
         config.add(self.repeaterOptionButton)
@@ -296,7 +318,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
 
         self._parentPane.addTab("Monitor", self._splitpane)
         self._parentPane.addTab("Config", self._config)
-        
+
         # table of log entries
         self.logTable = Table(self)
 
@@ -337,11 +359,11 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         tabs.addTab("Response", self._responseViewer.getComponent())
         self._splitpane.setRightComponent(tabs)
 
-        ## Row sorter shit 
+        ## Row sorter shit
 
         #self._tableRowSorterAutoProxyAutoAction = CustomTableRowSorter(self.logTable.getModel())
         #self.logTable.setRowSorter(self._tableRowSorterAutoProxyAutoAction)
-        
+
 
         markAnalyzedButton = JMenuItem("Mark Requests as Analyzed")
         markAnalyzedButton.addActionListener(markRequestsHandler(self, True))
@@ -373,10 +395,10 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         callbacks.registerContextMenuFactory(self)
         callbacks.registerExtensionStateListener(self)
         callbacks.registerScannerCheck(passiveScanner(self))
-        
+
         # add the custom tab to Burp's UI
         callbacks.addSuiteTab(self)
-        
+
         # register ourselves as an HTTP listener
         callbacks.registerHttpListener(self)
 
@@ -392,7 +414,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         self.SC.run()
 
         return
-        
+
     ##### CUSTOM CODE #####
     def loadConfigs(self):
 
@@ -420,7 +442,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
             self.autoSaveOption.setSelected(True)
         else:
             self.autoSaveOption.setSelected(False)
-        
+
         if self._callbacks.loadExtensionSetting("CONFIG_HIGHLIGHT_TESTED") == "True":
             self.markTestedRequestsProxy.setSelected(True)
         else:
@@ -467,7 +489,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         bad = self._callbacks.loadExtensionSetting("badExtensions")
         if bad:
             self.badExtensionsText.setText(bad)
-            # transform text to array 
+            # transform text to array
             bad = bad.replace(" ", "")
             self.BAD_EXTENSIONS = bad.split(",")
         else:
@@ -485,9 +507,18 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
             print 'no bad mimes saved, reverting'
             self.badMimesText.setText(", ".join(self.BAD_MIMES))
 
+    def loadBadMethods(self):
+        bad = self._callbacks.loadExtensionSetting("badMethods")
+        if bad:
+            self.badMethodsText.setText(bad)
+
+            bad = bad.replace(" ", "")
+            self.BAD_METHODS = bad.split(",")
+        else:
+            print 'no bad methods saved, reverting'
+            self.badMethodsText.setText(", ".join(self.BAD_METHODS))
 
 
-        
 
     ## GLOBAL CONTEXT CODE ##
 
@@ -500,7 +531,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
 
             for response in responses:
                 analyzedMenuItem.addActionListener(handleMenuItems(self,response, "analyzed"))
-                notAnalyzedMenuItem.addActionListener(handleMenuItems(self, response, "not"))   
+                notAnalyzedMenuItem.addActionListener(handleMenuItems(self, response, "not"))
             ret.add(analyzedMenuItem)
             ret.add(notAnalyzedMenuItem)
             return ret
@@ -565,7 +596,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
     def handleScopeOptionButton(self, event):
         self.CONFIG_INSCOPE = self.scopeOptionButton.isSelected()
         self._callbacks.saveExtensionSetting("CONFIG_INSCOPE", str(self.CONFIG_INSCOPE))
-        return 
+        return
 
     def handleBadExtensionsButton(self, event):
         #print "before BAD array: "
@@ -573,7 +604,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
 
         extensions = self.badExtensionsText.getText()
         self._callbacks.saveExtensionSetting("badExtensions", extensions)
-        print 'New extensions blocked: ' + extensions 
+        print 'New extensions blocked: ' + extensions
         bad = extensions.replace(" ", "")
         self.BAD_EXTENSIONS = bad.split(",")
         #print "BAD array: "
@@ -588,15 +619,28 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
     def handleBadMimesDefaultButton(self, event):
         self.BAD_MIMES = self.BAD_MIMES_DEFAULT
         self.badMimesText.setText(", ".join(self.BAD_MIMES))
-        self._callbacks.saveExtensionSetting("badExtensions", ", ".join(self.BAD_MIMES))
+        self._callbacks.saveExtensionSetting("badMimes", ", ".join(self.BAD_MIMES))
         return
 
     def handleBadMimesButton(self, event):
         mimes = self.badMimesText.getText()
         self._callbacks.saveExtensionSetting("badMimes", mimes)
-        print 'New mimes blocked: ' + mimes 
+        print 'New mimes blocked: ' + mimes
         bad = mimes.replace(" ", "")
         self.BAD_MIMES = bad.split(",")
+
+    def handleBadMethodsDefaultButton(self, event):
+        self.BAD_METHODS = self.BAD_METHODS_DEFAULT
+        self.badMethodsText.setText(", ".join(self.BAD_METHODS))
+        self._callbacks.saveExtensionSetting("badMethods", ", ".join(self.BAD_METHODS))
+        return
+
+    def handleBadMethodsButton(self, event):
+        methods = self.badMethodsText.getText()
+        self._callbacks.saveExtensionSetting("badMethods", methods)
+        print 'New methods blocked: ' + methods
+        bad = methods.replace(" ", "")
+        self.BAD_METHODS = bad.split(",")
 
     def handleClearButton(self, event):
         print 'Clearing table'
@@ -631,11 +675,11 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         else:
             print "unrecognized radio label"
 
-        
+
         self.fireTableDataChanged()
         #self._tableRowSorterAutoProxyAutoAction.toggleSortOrder(1)
         #self.toggleSortOrder(2)
-        
+
         #self.logTable.toggleSortOrder(2)
 
         # refresh table?
@@ -646,17 +690,17 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
     #
     # implement ITab
     #
-    
+
     def getTabCaption(self):
         return "Scope Monitor"
-    
+
     def getUiComponent(self):
         return self._parentPane
-        
+
     #
     # implement IHttpListener
     #
-    
+
     def markAnalyzed(self, messageIsRequest, state):
         #print "markAnalyzed..."
         self._lock.acquire()
@@ -684,7 +728,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
 
         #print "global handler status: (true): " + str(self.GLOBAL_HANDLER)
         #print "(processHTTP) messageIsRequest"
-        #print messageIsRequest 
+        #print messageIsRequest
 
         isFromPassiveScan = False
         if toolFlag == 1234:
@@ -718,11 +762,16 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         url = self.getEndpoint(messageInfo)
         method = self.getMethod(messageInfo)
 
-        #print "(processHTTP) before extensions check: " + url 
+        #print "(processHTTP) before extensions check: " + url
 
         for extension in self.BAD_EXTENSIONS:
             if url.endswith(extension):
                 return
+
+        print "Method:" + method
+        if method in self.BAD_METHODS:
+            print "Blocking method: " + method
+            return
 
         if messageInfo.getResponse():
             mime = self._helpers.analyzeResponse(messageInfo.getResponse()).getStatedMimeType()
@@ -732,7 +781,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
                 #print 'Bad mime:' + mime
                 return
 
-        #print "[httpMessage] before lock"        
+        #print "[httpMessage] before lock"
         # create a new log entry with the message details
         self._lock.acquire()
         row = self._log.size()
@@ -749,7 +798,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
                     if self._callbacks.getToolName(toolFlag) == "Repeater":
                         if self.repeaterOptionButton.isSelected():
                             analyzed = True
-                            #print "[httpMessage] setting analyzed as true" 
+                            #print "[httpMessage] setting analyzed as true"
                     if self.GLOBAL_HANDLER_ANALYZED:
                         analyzed = True
 
@@ -758,7 +807,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
 
                     return
 
-        #print "[httpMessage] before setComment" 
+        #print "[httpMessage] before setComment"
         if not (isFromPassiveScan):
             messageInfo.setComment(SCOPE_MONITOR_COMMENT)
         # reached here, must be new entry
@@ -766,11 +815,11 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         if self._callbacks.getToolName(toolFlag) == "Repeater":
             if self.repeaterOptionButton.isSelected():
                 analyzed = True
-                #print "[httpMessage] setting analyzed as true" 
+                #print "[httpMessage] setting analyzed as true"
         if self.GLOBAL_HANDLER_ANALYZED:
             analyzed = True
 
-        #print "[httpMessage] after comment" 
+        #print "[httpMessage] after comment"
         #print 'in httpmessage, response:'
         #print self._helpers.analyzeResponse(messageInfo.getResponse())
 
@@ -778,7 +827,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         entry = LogEntry(toolFlag, self._callbacks.saveBuffersToTempFiles(messageInfo), url, analyzed, date, method)
         #print "toolFlag: " + str(toolFlag)
 
-        #print "(processHTTP) Adding URL: " + url 
+        #print "(processHTTP) Adding URL: " + url
         self._log.add(entry)
         self._fullLog.add(entry)
         self.fireTableRowsInserted(row, row)
@@ -792,7 +841,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
     #
     # extend AbstractTableModel
     #
-    
+
     def paintItems(self, messageInfo, item):
         '''
         print "in paint Items"
@@ -833,7 +882,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         #self.setBackground(Color.GREEN)
         return self.returnEntry(rowIndex, columnIndex, logEntry)
 
-        if self.showNewButton.isSelected() and not(logEntry._analyzed):  
+        if self.showNewButton.isSelected() and not(logEntry._analyzed):
             return self.returnEntry(rowIndex, columnIndex, logEntry)
         elif self.showTestedButton.isSelected() and logEntry._analyzed:
             return self.returnEntry(rowIndex, columnIndex, logEntry)
@@ -849,7 +898,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
             else:
                 return "False"
         if columnIndex == 1:
-            return self._helpers.urlDecode(logEntry._url) 
+            return self._helpers.urlDecode(logEntry._url)
         if columnIndex == 2:
             return logEntry._method
         if columnIndex == 3:
@@ -862,8 +911,8 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
     # implement IMessageEditorController
     # this allows our request/response viewers to obtain details about the messages being displayed
     #
-    
-    
+
+
     def getHttpService(self):
         return self._currentlyDisplayedItem.getHttpService()
 
@@ -875,14 +924,14 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         #print 'getResponse called: '
         print self._currentlyDisplayedItem.getResponse()
         return self._currentlyDisplayedItem.getResponse()
-    
+
 
     def exportRequest(self, entity, filename):
 
         line = str(entity._analyzed) + ","
         line = line + self._helpers.urlEncode(entity._url).replace(",", "%2c") + ","    # URL is encoded so we should be good
         line = line + entity._method  + ","
-        line = line + entity._date 
+        line = line + entity._date
         line = line + '\n'
 
         #print 'Exporting: "' + line + '"'
@@ -897,14 +946,14 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         if filename == "":
             filename = self._callbacks.loadExtensionSetting("exportFile")
             print 'Empty filename, skipping export'
-            return 
+            return
         else:
             self._callbacks.saveExtensionSetting("exportFile", filename)
 
         print 'saving state to: ' + filename
 
         savedUrls = []
-        
+
         self._lockFile.acquire()
         try:
             with open(filename, 'r') as fr:
@@ -917,17 +966,17 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
                 #print savedUrls
                 fr.close()
         except IOError:
-            print "Autosaving skipped as file doesn't exist yet" 
+            print "Autosaving skipped as file doesn't exist yet"
 
         with open(filename, 'a+') as f:
-            
+
             for item in self._log:
                 if self.exportUrlEncode(item._url) not in savedUrls:
                     line = self.exportRequest(item, "xx")
                     f.write(line)
             f.close()
         self._lockFile.release()
-        
+
         return
 
     def importState(self, filename):
@@ -936,7 +985,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
         if filename == "":
             filename = self._callbacks.loadExtensionSetting("exportFile")
             print 'Empty filename, skipping import'
-            return 
+            return
         else:
             self._callbacks.saveExtensionSetting("exportFile", filename)
 
@@ -963,7 +1012,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
             for line in lines:
                 data = line.split(",")
                 url = data[1]
-                url = self._helpers.urlDecode(url) 
+                url = self._helpers.urlDecode(url)
 
                 #print 'Saving: ' + url
                 if not self._callbacks.isInScope(URL(url)):
@@ -984,7 +1033,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
                         requestResponse = request
                         break
 
-                self._log.add(LogEntry("", requestResponse, url, analyzed, data[3], data[2]) ) 
+                self._log.add(LogEntry("", requestResponse, url, analyzed, data[3], data[2]) )
 
 
             self._lockFile.release()
@@ -1015,7 +1064,7 @@ class BurpExtender(IBurpExtender, ITab, IHttpListener, IMessageEditorController,
 #
 
     #def getRequest(self,):
-    
+
 class Table(JTable):
     def __init__(self, extender):
         self._extender = extender
@@ -1023,13 +1072,13 @@ class Table(JTable):
         self.addMouseListener(mouseclick(self._extender))
         self.setRowSelectionAllowed(True)
         self.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION)
-    
+
     def changeSelection(self, row, col, toggle, extend):
-    
+
         # shows "entries" matching
 
         # show the log entry for the selected row
-        #print 'Selecting entry ' + str(row) + ' in changeSelection: ' 
+        #print 'Selecting entry ' + str(row) + ' in changeSelection: '
 
         JTable.changeSelection(self, row, col, toggle, extend)
 
@@ -1046,12 +1095,12 @@ class Table(JTable):
         self._extender._currentlyDisplayedItem = logEntry._requestResponse
         self._extender._requestViewer.setMessage(logEntry._requestResponse.getRequest(), True)
         self._extender._responseViewer.setMessage(logEntry._requestResponse.getResponse(), False)
-        
-        
+
+
         #JTable.changeSelection(self, row, col, toggle, extend)
         return
 
-    
+
 class mouseclick(MouseAdapter):
     def __init__(self, extender):
         self._extender = extender
@@ -1087,7 +1136,7 @@ class LogEntry:
         self._url = url
         self._displayed = False
         self._analyzed  = analyzed
-        self._date = date 
+        self._date = date
         self._method = method
 
 class CustomTableRowSorter(TableRowSorter):
@@ -1095,7 +1144,7 @@ class CustomTableRowSorter(TableRowSorter):
     # override toggleSortOrder method
     def toggleSortOrder(self, column):
 
-        # check if valid column 
+        # check if valid column
         if column >= 0:
 
             # get the sort keys
@@ -1144,7 +1193,7 @@ class deleteRequestHandler(ActionListener):
         self._extender.fireTableDataChanged()
         #print 'refreshing view ..... *****'
 
-        return 
+        return
 
 class sendRequestRepeater(ActionListener):
     def __init__(self, extender):
@@ -1166,10 +1215,10 @@ class sendRequestRepeater(ActionListener):
             proto = request.getHttpService().getProtocol()
 
             secure = True if proto == 'https' else False
-            
+
             self._extender._callbacks.sendToRepeater(host, port, secure, request.getRequest(), None);
 
-        return 
+        return
 
 ### LOCAL CONTEXT
 class markRequestsHandler(ActionListener):
@@ -1189,7 +1238,7 @@ class markRequestsHandler(ActionListener):
 
             #print "Changing url: " + url
 
-            ### TODO REPLACE FOR MARK_AS_ANALYZED 
+            ### TODO REPLACE FOR MARK_AS_ANALYZED
             self._extender._lock.acquire()
 
             for item in self._extender._log:
@@ -1207,10 +1256,10 @@ class markRequestsHandler(ActionListener):
         #self._extender.changeSelection(self._extender.SELECTED_VIEW_ROW, 1, False, False)
         #self._extender.changeSelection(self._extender.SELECTED_VIEW_ROW, 1, True, True)
 
-        return 
+        return
 
 
-### GLOBAL CONTEXT #### 
+### GLOBAL CONTEXT ####
 class handleMenuItems(ActionListener):
     def __init__(self, extender, messageInfo, menuName):
         self._extender = extender
